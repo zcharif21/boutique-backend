@@ -1,0 +1,26 @@
+# render.yaml — Configuration déploiement automatique sur Render
+# Place ce fichier à la racine du dossier backend/
+
+services:
+  - type: web
+    name: boutique-backend
+    runtime: node
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false       # à renseigner manuellement dans le dashboard Render
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
