@@ -122,11 +122,24 @@ router.patch('/:id/status', protect, adminOnly, async (req, res) => {
     if (!valid.includes(status))
       return res.status(400).json({ message: 'Statut invalide' });
 
-    const result = await pool.query(
-      'UPDATE orders SET status=$1 WHERE id=$2 RETURNING *',
-      [status, req.params.id]
-    );
-    if (!result.rows[0]) return res.status(404).json({ message: 'Commande non trouvée' });
+    const client = await pool.connect();
+    await client.query('BEGIN');
+
+    const prev = await client.query('SELECT status FROM orders WHERE id=$1', [req.params.id]);
+    if (!prev.rows[0]) { await client.query('ROLLBACK'); client.release(); return res.status(404).json({ message: 'Commande non trouvée' }); }
+
+    const result = await client.query('UPDATE orders SET status=$1 WHERE id=$2 RETURNING *', [status, req.params.id]);
+
+    // Si annulée → restaurer le stock
+    if (status === 'annulee' && prev.rows[0].status !== 'annulee') {
+      const items = await client.query('SELECT product_id, quantity FROM order_items WHERE order_id=$1', [req.params.id]);
+      for (const item of items.rows) {
+        await client.query('UPDATE products SET stock_qty = stock_qty + $1 WHERE id=$2', [item.quantity, item.product_id]);
+      }
+    }
+
+    await client.query('COMMIT');
+    client.release();
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur' });
