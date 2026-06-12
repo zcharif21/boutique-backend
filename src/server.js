@@ -15,12 +15,12 @@ const PORT = process.env.PORT || 5000;
 // CORS : autorise le frontend (Next.js) à appeler le backend
 app.use(cors({
   origin: [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    'https://ta-boutique.vercel.app', // à changer avec ton URL Vercel
+    'http://localhost:3000',
+    'https://boutique-app-ecru.vercel.app',
+    'https://boutique-app-ecru.vercel.app/'
   ],
-  credentials: true,
+  credentials: true
 }));
-
 app.use(express.json());          // parse les corps JSON
 app.use(express.urlencoded({ extended: true })); // parse les formulaires
 
