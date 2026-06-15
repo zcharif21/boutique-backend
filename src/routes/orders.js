@@ -23,7 +23,12 @@ router.post('/', protect, async (req, res) => {
       if (!prod.rows[0]) throw new Error(`Produit ${item.product_id} introuvable`);
       if (prod.rows[0].stock_qty < item.quantity) throw new Error(`Stock insuffisant pour "${prod.rows[0].name}"`);
       total += prod.rows[0].price * item.quantity;
-      enriched.push({ ...prod.rows[0], quantity: item.quantity });
+      enriched.push({
+        ...prod.rows[0],
+        quantity: item.quantity,
+        color: item.color || null,
+        size: item.size || null,
+      });
     }
 
     const order = await client.query(
@@ -34,7 +39,7 @@ router.post('/', protect, async (req, res) => {
     for (const item of enriched) {
       await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, unit_price, color, size) VALUES ($1,$2,$3,$4,$5,$6)`,
-        [order.rows[0].id, item.product_id, item.quantity, item.unit_price, item.color || null, item.size || null]
+        [order.rows[0].id, item.id, item.quantity, item.price, item.color, item.size]
       );
       await client.query('UPDATE products SET stock_qty = stock_qty - $1 WHERE id = $2', [item.quantity, item.id]);
     }
@@ -61,7 +66,18 @@ router.get('/', protect, async (req, res) => {
     } else {
       result = await pool.query('SELECT * FROM orders WHERE user_id=$1 ORDER BY created_at DESC', [req.user.id]);
     }
-    res.json(result.rows);
+
+    const orders = result.rows;
+    for (const order of orders) {
+      const itemsRes = await pool.query(
+        `SELECT oi.*, p.name, p.image_url FROM order_items oi
+         LEFT JOIN products p ON oi.product_id = p.id
+         WHERE oi.order_id = $1`,
+        [order.id]
+      );
+      order.items = itemsRes.rows;
+    }
+    res.json(orders);
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur' });
   }
@@ -102,17 +118,13 @@ router.patch('/:id/status', protect, adminOnly, async (req, res) => {
     }
 
     const result = await client.query('UPDATE orders SET status=$1 WHERE id=$2 RETURNING *', [status, req.params.id]);
-
     const items = await client.query('SELECT product_id, quantity FROM order_items WHERE order_id=$1', [req.params.id]);
 
-    // Si annulée → restaurer le stock
     if (status === 'annulee' && prev.rows[0].status !== 'annulee') {
       for (const item of items.rows) {
         await client.query('UPDATE products SET stock_qty = stock_qty + $1 WHERE id=$2', [item.quantity, item.product_id]);
       }
-    }
-    // Si réactivée depuis annulée → décrémenter le stock
-    else if (prev.rows[0].status === 'annulee' && status !== 'annulee') {
+    } else if (prev.rows[0].status === 'annulee' && status !== 'annulee') {
       for (const item of items.rows) {
         await client.query('UPDATE products SET stock_qty = stock_qty - $1 WHERE id=$2', [item.quantity, item.product_id]);
       }
