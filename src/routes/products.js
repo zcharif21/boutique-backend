@@ -160,4 +160,57 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
   }
 });
 
+// ── GET /api/products/:id/variants ────────────────────────
+router.get('/:id/variants', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM product_variants WHERE product_id=$1 ORDER BY color, size',
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// ── POST /api/products/:id/variants ───────────────────────
+router.post('/:id/variants', protect, adminOnly, async (req, res) => {
+  try {
+    const { size, color, stock_qty } = req.body;
+    const result = await pool.query(
+      `INSERT INTO product_variants (product_id, size, color, stock_qty)
+       VALUES ($1,$2,$3,$4) RETURNING *`,
+      [req.params.id, size || null, color || null, stock_qty || 0]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// ── PATCH /api/products/variants/:vid ─────────────────────
+router.patch('/variants/:vid', protect, adminOnly, async (req, res) => {
+  try {
+    const { stock_qty } = req.body;
+    const result = await pool.query(
+      'UPDATE product_variants SET stock_qty=$1 WHERE id=$2 RETURNING *',
+      [stock_qty, req.params.vid]
+    );
+    if (!result.rows[0]) return res.status(404).json({ message: 'Variante non trouvée' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// ── DELETE /api/products/variants/:vid ────────────────────
+router.delete('/variants/:vid', protect, adminOnly, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM product_variants WHERE id=$1', [req.params.vid]);
+    res.json({ message: 'Variante supprimée' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
 module.exports = router;
