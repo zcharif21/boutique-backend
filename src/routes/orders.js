@@ -33,8 +33,8 @@ router.post('/', protect, async (req, res) => {
 
     for (const item of enriched) {
       await client.query(
-        `INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES ($1,$2,$3,$4)`,
-        [order.rows[0].id, item.id, item.quantity, item.price]
+        `INSERT INTO order_items (order_id, product_id, quantity, unit_price, color, size) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [order.rows[0].id, item.product_id, item.quantity, item.unit_price, item.color || null, item.size || null]
       );
       await client.query('UPDATE products SET stock_qty = stock_qty - $1 WHERE id = $2', [item.quantity, item.id]);
     }
