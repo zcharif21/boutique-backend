@@ -213,4 +213,49 @@ router.delete('/variants/:vid', protect, adminOnly, async (req, res) => {
   }
 });
 
+// ── GET /api/products/:id/images ──────────────────────────
+router.get('/:id/images', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM product_images WHERE product_id=$1 ORDER BY position',
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// ── POST /api/products/:id/images ─────────────────────────
+router.post('/:id/images', protect, adminOnly, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Image requise' });
+    const { position = 0 } = req.body;
+    const result = await pool.query(
+      'INSERT INTO product_images (product_id, image_url, position) VALUES ($1,$2,$3) RETURNING *',
+      [req.params.id, req.file.path, position]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// ── DELETE /api/products/images/:imgId ────────────────────
+router.delete('/images/:imgId', protect, adminOnly, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM product_images WHERE id=$1 RETURNING *',
+      [req.params.imgId]
+    );
+    if (result.rows[0]) {
+      const publicId = result.rows[0].image_url.split('/').slice(-2).join('/').replace(/\.[^/.]+$/, '');
+      await cloudinary.uploader.destroy(publicId);
+    }
+    res.json({ message: 'Image supprimée' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
 module.exports = router;
