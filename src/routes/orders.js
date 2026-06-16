@@ -57,12 +57,12 @@ router.post('/', protect, async (req, res) => {
       await client.query('UPDATE products SET stock_qty = stock_qty - $1 WHERE id = $2', [item.quantity, item.id]);
       if (item.color || item.size) {
         await client.query(
-        `UPDATE product_variants SET stock_qty = stock_qty - $1
-        WHERE product_id=$2
-        AND ($3::text IS NULL OR color=$3) AND ($4::text IS NULL OR size=$4)`,
-        [item.quantity, item.id, item.color || null, item.size || null]
-     );
-    }
+          `UPDATE product_variants SET stock_qty = stock_qty - $1
+           WHERE product_id=$2
+           AND ($3::text IS NULL OR color=$3) AND ($4::text IS NULL OR size=$4)`,
+          [item.quantity, item.id, item.color || null, item.size || null]
+        );
+      }
     }
 
     await client.query('COMMIT');
@@ -139,15 +139,31 @@ router.patch('/:id/status', protect, adminOnly, async (req, res) => {
     }
 
     const result = await client.query('UPDATE orders SET status=$1 WHERE id=$2 RETURNING *', [status, req.params.id]);
-    const items = await client.query('SELECT product_id, quantity FROM order_items WHERE order_id=$1', [req.params.id]);
+    const items = await client.query('SELECT product_id, quantity, color, size FROM order_items WHERE order_id=$1', [req.params.id]);
 
     if (status === 'annulee' && prev.rows[0].status !== 'annulee') {
       for (const item of items.rows) {
         await client.query('UPDATE products SET stock_qty = stock_qty + $1 WHERE id=$2', [item.quantity, item.product_id]);
+        if (item.color || item.size) {
+          await client.query(
+            `UPDATE product_variants SET stock_qty = stock_qty + $1
+             WHERE product_id=$2
+             AND ($3::text IS NULL OR color=$3) AND ($4::text IS NULL OR size=$4)`,
+            [item.quantity, item.product_id, item.color || null, item.size || null]
+          );
+        }
       }
     } else if (prev.rows[0].status === 'annulee' && status !== 'annulee') {
       for (const item of items.rows) {
         await client.query('UPDATE products SET stock_qty = stock_qty - $1 WHERE id=$2', [item.quantity, item.product_id]);
+        if (item.color || item.size) {
+          await client.query(
+            `UPDATE product_variants SET stock_qty = stock_qty - $1
+             WHERE product_id=$2
+             AND ($3::text IS NULL OR color=$3) AND ($4::text IS NULL OR size=$4)`,
+            [item.quantity, item.product_id, item.color || null, item.size || null]
+          );
+        }
       }
     }
 
