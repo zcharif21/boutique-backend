@@ -21,7 +21,20 @@ router.post('/', protect, async (req, res) => {
         [item.product_id]
       );
       if (!prod.rows[0]) throw new Error(`Produit ${item.product_id} introuvable`);
-      if (prod.rows[0].stock_qty < item.quantity) throw new Error(`Stock insuffisant pour "${prod.rows[0].name}"`);
+
+      if (item.color || item.size) {
+        const variant = await client.query(
+          `SELECT stock_qty FROM product_variants WHERE product_id=$1
+           AND ($2::text IS NULL OR color=$2) AND ($3::text IS NULL OR size=$3)`,
+          [item.product_id, item.color || null, item.size || null]
+        );
+        if (!variant.rows[0] || variant.rows[0].stock_qty < item.quantity)
+          throw new Error(`Stock insuffisant pour "${prod.rows[0].name}"`);
+      } else {
+        if (prod.rows[0].stock_qty < item.quantity)
+          throw new Error(`Stock insuffisant pour "${prod.rows[0].name}"`);
+      }
+
       total += prod.rows[0].price * item.quantity;
       enriched.push({
         ...prod.rows[0],
