@@ -27,13 +27,19 @@ router.get('/', async (req, res) => {
 
     // Jointure avec categories pour récupérer le nom de la catégorie
     const query = `
-      SELECT p.*, c.name AS category_name, c.slug AS category_slug
-      FROM products p
-      LEFT JOIN categories c ON p.category_id = c.id
-      ${where}
-      ORDER BY p.created_at DESC
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-    `;
+          SELECT p.*,
+                 c.name AS category_name,
+                 c.slug AS category_slug,
+                 COALESCE(
+                   NULLIF((SELECT SUM(v.stock_qty) FROM product_variants v WHERE v.product_id = p.id), 0),
+                   p.stock_qty
+                 ) AS stock_qty
+          FROM products p
+          LEFT JOIN categories c ON p.category_id = c.id
+          ${where}
+          ORDER BY p.created_at DESC
+          LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+        `;
     params.push(limit, offset);
 
     const result = await pool.query(query, params);
