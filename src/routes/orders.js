@@ -55,6 +55,14 @@ router.post('/', protect, async (req, res) => {
         [order.rows[0].id, item.id, item.quantity, item.price, item.color, item.size]
       );
       await client.query('UPDATE products SET stock_qty = stock_qty - $1 WHERE id = $2', [item.quantity, item.id]);
+      if (item.color || item.size) {
+        await client.query(
+        `UPDATE product_variants SET stock_qty = stock_qty - $1
+        WHERE product_id=$2
+        AND ($3::text IS NULL OR color=$3) AND ($4::text IS NULL OR size=$4)`,
+        [item.quantity, item.id, item.color || null, item.size || null]
+     );
+    }
     }
 
     await client.query('COMMIT');
