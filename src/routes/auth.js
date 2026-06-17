@@ -86,4 +86,70 @@ router.get('/me', protect, async (req, res) => {
   }
 });
 
+// ── POST /api/auth/forgot-password ────────────────────────
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const result = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+    if (!result.rows[0]) return res.status(404).json({ message: 'Email introuvable' });
+
+    const token = require('crypto').randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1h
+
+    await pool.query(
+      'UPDATE users SET reset_token=$1, reset_token_expires=$2 WHERE email=$3',
+      [token, expires, email]
+    );
+
+    const { Resend } = require('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password?token=${token}`;
+
+    await resend.emails.send({
+      from: 'onboarding@resend.dev',
+      to: email,
+      subject: 'Réinitialisation de votre mot de passe — Original UK',
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px">
+          <h2 style="color:#db2777">Original UK</h2>
+          <p>Bonjour,</p>
+          <p>Vous avez demandé à réinitialiser votre mot de passe.</p>
+          <a href="${resetUrl}" style="display:inline-block;background:#db2777;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0">
+            Réinitialiser mon mot de passe
+          </a>
+          <p style="color:#666;font-size:14px">Ce lien expire dans 1 heure.</p>
+          <p style="color:#666;font-size:14px">Si vous n'avez pas fait cette demande, ignorez cet email.</p>
+        </div>
+      `,
+    });
+
+    res.json({ message: 'Email envoyé' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// ── POST /api/auth/reset-password ─────────────────────────
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    const result = await pool.query(
+      'SELECT * FROM users WHERE reset_token=$1 AND reset_token_expires > NOW()',
+      [token]
+    );
+    if (!result.rows[0]) return res.status(400).json({ message: 'Token invalide ou expiré' });
+
+    const hashed = await require('bcryptjs').hash(password, 10);
+    await pool.query(
+      'UPDATE users SET password_hash=$1, reset_token=NULL, reset_token_expires=NULL WHERE id=$2',
+      [hashed, result.rows[0].id]
+    );
+
+    res.json({ message: 'Mot de passe mis à jour' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
 module.exports = router;

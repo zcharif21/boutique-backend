@@ -13,9 +13,9 @@ const bcrypt   = require('bcryptjs');
 
 // ── CONFIGURE ICI ──────────────────────────────────────────
 const ADMIN = {
-  name:     'Admin Boutique',
-  email:    'admin@maboutique.dz',
-  password: 'MotDePasseFort2024!',   // change ce mot de passe !
+  name:     'Admin',
+  email:    'admin@originaluk.dz',
+  password: 'OriginalUK2024',
 };
 // ───────────────────────────────────────────────────────────
 
