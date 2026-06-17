@@ -28,6 +28,7 @@ app.use(express.urlencoded({ extended: true })); // parse les formulaires
 app.use('/api/auth',       authRoutes);
 app.use('/api/products',   productRoutes);
 app.use('/api/orders',     orderRoutes);
+app.use('/api/users', require('./routes/users'));
 app.use('/api/categories', categoryRoutes);
 
 // ── Route de santé (health check) ────────────────────────
